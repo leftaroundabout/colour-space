@@ -9,11 +9,12 @@ import Data.Semigroup
 
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Types
-import Data.Manifold.Riemannian (IntervalLike(..))
+import Data.Manifold.Riemannian
 import Data.VectorSpace
 import Data.AdditiveGroup
 
 import Data.Colour.SRGB.Linear
+import Data.Colour
 
 
 newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ }
@@ -70,4 +71,7 @@ instance Semimanifold (Colour ℝ) where
 
 instance PseudoAffine (Colour ℝ) where
   c .-~. ζ = (^-^ζ) <$> toInterior c
+
+instance Geodesic (Colour ℝ) where
+  geodesicBetween a b = pure $ \(D¹ q) -> blend ((q+1)/2) a b
 
