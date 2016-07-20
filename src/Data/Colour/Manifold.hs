@@ -57,9 +57,9 @@ bijectToLtd y = CD¹ ( ( y - 1 + sqrt(1+y^2) ) / (2*y) ) Origin
 --   = (y - 1 +! sqrt( 1 + y² ) ) / (2*y)
 
 bijectFromLtd :: CD¹ ℝ⁰ -> Option ℝ
-bijectFromLtd (CD¹ 0 Origin) = empty
-bijectFromLtd (CD¹ 1 Origin) = empty
-bijectFromLtd (CD¹ x Origin) = return $ (x - 0.5) / (x*(1 - x))
+bijectFromLtd (CD¹ x Origin)
+    | x>0 && x<1  = return $ (x - 0.5) / (x*(1 - x))
+    | otherwise   = empty
 
 instance Semimanifold (Colour ℝ) where
   type Interior (Colour ℝ) = ColourNeedle
