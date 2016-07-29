@@ -75,7 +75,7 @@ instance PseudoAffine (Colour ℝ) where
   c .-~. ζ = (^-^ζ) <$> toInterior c
 
 instance Geodesic (Colour ℝ) where
-  geodesicBetween a b = pure $ \(D¹ q) -> blend ((q+1)/2) a b
+  geodesicBetween a b = pure $ \(D¹ q) -> blend ((q+1)/2) b a
 
 
 class QuantisedColour c where
