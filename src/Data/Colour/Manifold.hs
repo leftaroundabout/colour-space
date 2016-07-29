@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Data.Colour.Manifold (Colour) where
+module Data.Colour.Manifold (Colour, QuantisedColour(..)) where
 
 import Control.Applicative
 import Control.Arrow
@@ -13,9 +13,11 @@ import Data.Manifold.Riemannian
 import Data.VectorSpace
 import Data.AdditiveGroup
 
+import Data.Colour.SRGB (toSRGB, toSRGB24)
 import Data.Colour.SRGB.Linear
 import Data.Colour
 
+import Codec.Picture.Types
 
 newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ }
 
@@ -74,4 +76,16 @@ instance PseudoAffine (Colour ℝ) where
 
 instance Geodesic (Colour ℝ) where
   geodesicBetween a b = pure $ \(D¹ q) -> blend ((q+1)/2) a b
+
+
+class QuantisedColour c where
+  quantiseColour :: Colour ℝ -> c
+
+instance QuantisedColour PixelRGBF where
+  quantiseColour c = PixelRGBF r g b
+   where RGB r g b = fmap realToFrac $ toSRGB c
+  
+instance QuantisedColour PixelRGB8 where
+  quantiseColour c = PixelRGB8 r g b
+   where RGB r g b = toSRGB24 c
 
