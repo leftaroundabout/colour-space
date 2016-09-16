@@ -21,7 +21,7 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.9
-                     , manifolds >=0.1.5 && <0.2.4
+                     , manifolds >=0.1.5 && <0.4
                      , vector-space
                      , semigroups
                      , colour > 2 && < 3
