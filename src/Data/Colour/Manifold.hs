@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Data.Colour.Manifold (Colour, QuantisedColour(..)) where
@@ -27,6 +28,7 @@ import Control.Category.Constrained.Prelude
 
 import Codec.Picture.Types
 
+import Data.Coerce
 import Data.Type.Coercion
 
 newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ }
@@ -104,7 +106,45 @@ instance LinearSpace ColourNeedle where
   composeLinear = bilinearFunction $ \f (LinearMap (RGB r' g' b'))
             -> LinearMap $ RGB (f $ r') (f $ g') (f $ b')
 
+instance SemiInner ColourNeedle where
+  dualBasisCandidates = cartesianDualBasisCandidates
+           [ColourNeedle (RGB 1 0 0), ColourNeedle (RGB 0 1 0), ColourNeedle (RGB 0 0 1)]
+           (\(ColourNeedle (RGB r g b)) -> abs <$> [r,g,b])
 
+instance FiniteDimensional ColourNeedle where
+  data SubBasis ColourNeedle = ColourNeedleBasis
+  entireBasis = ColourNeedleBasis
+  enumerateSubBasis ColourNeedleBasis
+          = ColourNeedle <$> [RGB 1 0 0, RGB 0 1 0, RGB 0 0 1]
+  decomposeLinMap (LinearMap (RGB r g b)) = (ColourNeedleBasis, ([r,g,b]++))
+  decomposeLinMapWithin ColourNeedleBasis (LinearMap (RGB r g b)) = pure ([r,g,b]++)
+  recomposeSB ColourNeedleBasis [] = (ColourNeedle $ RGB 0 0 0, [])
+  recomposeSB ColourNeedleBasis [r] = (ColourNeedle $ RGB r 0 0, [])
+  recomposeSB ColourNeedleBasis [r,g] = (ColourNeedle $ RGB r g 0, [])
+  recomposeSB ColourNeedleBasis (r:g:b:l) = (ColourNeedle $ RGB r g b, l)
+  recomposeSBTensor ColourNeedleBasis sbw l
+          = let (r,l') = recomposeSB sbw l
+                (g,l'') = recomposeSB sbw l'
+                (b,l''') = recomposeSB sbw l''
+            in (Tensor $ RGB r g b, l''')
+  recomposeLinMap ColourNeedleBasis [] = (LinearMap $ RGB zeroV zeroV zeroV, [])
+  recomposeLinMap ColourNeedleBasis [r] = (LinearMap $ RGB r zeroV zeroV, [])
+  recomposeLinMap ColourNeedleBasis [r,g] = (LinearMap $ RGB r g zeroV, [])
+  recomposeLinMap ColourNeedleBasis (r:g:b:l) = (LinearMap $ RGB r g b, l)
+  recomposeContraLinMap f l = LinearMap $ RGB (f $ fmap (channelRed . getRGBNeedle) l)
+                                              (f $ fmap (channelGreen . getRGBNeedle) l)
+                                              (f $ fmap (channelBlue . getRGBNeedle) l)
+  recomposeContraLinMapTensor fw mv = LinearMap $
+       (\c -> fromLinearMap $ recomposeContraLinMap fw
+                $ fmap (\(Tensor q) -> c q) mv)
+                       <$> RGB channelRed channelGreen channelBlue
+  uncanonicallyFromDual = id
+  uncanonicallyToDual = id
+
+fromLinearMap :: (LSpace u, Scalar u ~ s) => LinearMap s (DualVector u) w -> Tensor s u w
+fromLinearMap = coerce
+
+  
 
 instance Semimanifold ColourNeedle where
   type Needle ColourNeedle = ColourNeedle
