@@ -164,13 +164,19 @@ toLtdRGB = toRGB >>> fmap ((`CD¹`Origin) . min 1 . max 0)
 type LtdCol = RGB (CD¹ ℝ⁰)
 
 bijectToLtd :: ℝ -> CD¹ ℝ⁰
-bijectToLtd y = CD¹ ( ( y - 1 + sqrt(1+y^2) ) / (2*y) ) Origin
+bijectToLtd 0 = CD¹ 0.5 Origin
+bijectToLtd y
+  | ψ > 0.5    = CD¹ 1 Origin
+  | ψ > -0.5   = CD¹ ( 0.5 - ψ ) Origin
+  | otherwise  = CD¹ 0 Origin
+ where ψ = (1 - sqrt(1+y^2)) / (2*y)
 -- y = (x - 1/2) / (x*(1 - x))
 -- y * x * (1 - x) = x - 1/2
 -- y * x² - (1 - y) * x - 1/2 = 0
 -- y * x² + (y - 1) * x - 1/2 = 0
 -- x = (1 - y ± sqrt( (1-y)² + 2*y ) ) / (-2*y)
---   = (y - 1 +! sqrt( 1 + y² ) ) / (2*y)
+--   = (y - 1 +! sqrt( 1 + y² ) ) / (2*y)  -- unstable for y ≈ 0
+--   = 1/2 - (1 - sqrt( 1 + y² ) ) / (2*y)
 
 bijectFromLtd :: CD¹ ℝ⁰ -> Option ℝ
 bijectFromLtd (CD¹ x Origin)
