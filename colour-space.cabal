@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                colour-space
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:            Instances of the manifold-classes for colour types
 -- description:         
 homepage:            https://github.com/leftaroundabout/colour-space
@@ -21,7 +21,7 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.9
-                     , manifolds >=0.1.5 && <0.4
+                     , manifolds >=0.3 && <0.4
                      , constrained-categories
                      , linearmap-category
                      , linear

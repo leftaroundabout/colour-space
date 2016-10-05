@@ -31,7 +31,7 @@ import Codec.Picture.Types
 import Data.Coerce
 import Data.Type.Coercion
 
-newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ }
+newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ } deriving (Show)
 
 asV3Needle :: ColourNeedle -+> V3 ℝ
 asV3Needle = LinearFunction $ \(ColourNeedle (RGB r g b)) -> V3 r g b
