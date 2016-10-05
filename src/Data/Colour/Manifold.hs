@@ -191,6 +191,12 @@ instance PseudoAffine (Colour ℝ) where
 instance Geodesic (Colour ℝ) where
   geodesicBetween a b = return $ \(D¹ q) -> blend ((q+1)/2) b a
 
+instance Geodesic ColourNeedle where
+  geodesicBetween (ColourNeedle (RGB r g b)) (ColourNeedle (RGB r' g' b'))
+                 = return $ \(D¹ q) -> let η' = (q+1)/2 in ColourNeedle
+                                        $ RGB (lerp r r' η')
+                                              (lerp g g' η')
+                                              (lerp b b' η')
 
 class QuantisedColour c where
   quantiseColour :: Colour ℝ -> c
