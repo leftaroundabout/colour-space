@@ -1,7 +1,9 @@
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE UnicodeSyntax       #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Data.Colour.Manifold (Colour, QuantisedColour(..)) where
 
@@ -45,6 +47,9 @@ asV3Tensor = LinearFunction $ \(Tensor (RGB r g b)) -> Tensor $ V3 r g b
 fromV3Tensor :: (V3 ℝ⊗w) -+> (ColourNeedle⊗w)
 fromV3Tensor = LinearFunction $ \(Tensor (V3 r g b)) -> Tensor $ RGB r g b
 
+fromV3LinMap :: (V3 ℝ+>w) -+> (ColourNeedle+>w)
+fromV3LinMap = LinearFunction $ \(LinearMap (V3 r g b)) -> LinearMap $ RGB r g b
+
 withRGBNeedle :: (RGB Double -> RGB Double) -> ColourNeedle -> ColourNeedle
 withRGBNeedle f (ColourNeedle q) = ColourNeedle $ f q
 
@@ -58,6 +63,7 @@ instance VectorSpace ColourNeedle where
 
 instance TensorSpace ColourNeedle where
   type TensorProduct ColourNeedle w = RGB w
+  scalarSpaceWitness = ScalarSpaceWitness
   zeroTensor = Tensor (RGB zeroV zeroV zeroV)
   toFlatTensor = LinearFunction $ \(ColourNeedle (RGB r g b)) -> Tensor (RGB r g b)
   fromFlatTensor = LinearFunction $ \(Tensor (RGB r g b)) -> ColourNeedle (RGB r g b)
@@ -69,7 +75,8 @@ instance TensorSpace ColourNeedle where
                        -> Tensor (RGB (μ*^r) (μ*^g) (μ*^b))
   tensorProduct = bilinearFunction $ \(ColourNeedle (RGB r g b)) w
                        -> Tensor (RGB (r*^w) (g*^w) (b*^w))
-  transposeTensor = (fmapTensor $ fromV3Needle) . transposeTensor . asV3Tensor
+  transposeTensor = (getLinearFunction fmapTensor fromV3Needle)
+                      . transposeTensor . asV3Tensor
   fmapTensor = bilinearFunction $ \f (Tensor (RGB r g b))
                    -> Tensor $ RGB (f $ r) (f $ g) (f $ b)
   fzipTensorWith = bilinearFunction $ \f (Tensor (RGB r g b), Tensor (RGB r' g' b'))
@@ -81,11 +88,16 @@ instance LinearSpace ColourNeedle where
   linearId = LinearMap $ RGB (ColourNeedle $ RGB 1 0 0)
                              (ColourNeedle $ RGB 0 1 0)
                              (ColourNeedle $ RGB 0 0 1)
+  tensorId = ti dualSpaceWitness (asTensor $ id)
+   where ti :: ∀ w . (TensorSpace w, Scalar w ~ ℝ)
+               => DualSpaceWitness w -> Tensor ℝ (DualVector w) w
+                 -> Tensor ℝ ColourNeedle w+>Tensor ℝ ColourNeedle w
+         ti DualSpaceWitness wid = LinearMap $ RGB
+                  (fmap (LinearFunction $ \w -> Tensor $ RGB w zeroV zeroV) $ wid)
+                  (fmap (LinearFunction $ \w -> Tensor $ RGB zeroV w zeroV) $ wid)
+                  (fmap (LinearFunction $ \w -> Tensor $ RGB zeroV zeroV w) $ wid)
   coerceDoubleDual = Coercion
-  blockVectSpan = LinearFunction $ \w -> Tensor $ RGB (LinearMap $ RGB w o o)
-                                                      (LinearMap $ RGB o w o)
-                                                      (LinearMap $ RGB o o w)
-   where o = zeroV
+  dualSpaceWitness = DualSpaceWitness
   contractTensorMap = LinearFunction $ \(LinearMap (RGB (Tensor (RGB r _ _))
                                                         (Tensor (RGB _ g _))
                                                         (Tensor (RGB _ _ b))))
@@ -103,13 +115,24 @@ instance LinearSpace ColourNeedle where
             -> r'*r + g'*g + b'*b
   applyLinear = bilinearFunction $ \(LinearMap (RGB r' g' b')) (ColourNeedle (RGB r g b))
             -> r'^*r ^+^ g'^*g ^+^ b'^*b
+  applyTensorFunctional = bilinearFunction
+            $ \(LinearMap (RGB r' g' b')) (Tensor (RGB r g b))
+                   -> r'<.>^r + g'<.>^g + b'<.>^b
+  applyTensorLinMap = bilinearFunction
+            $ \(LinearMap (RGB r' g' b')) (Tensor (RGB r g b))
+                -> (r'+$r) ^+^ (g'+$g) ^+^ (b'+$b)
+   where f+$x = getLinearFunction (getLinearFunction applyLinear $ fromTensor $ f) x
   composeLinear = bilinearFunction $ \f (LinearMap (RGB r' g' b'))
-            -> LinearMap $ RGB (f $ r') (f $ g') (f $ b')
+            -> LinearMap $ RGB (f +$ r') (f +$ g') (f +$ b')
+   where f+$x = getLinearFunction (getLinearFunction applyLinear f) x
 
 instance SemiInner ColourNeedle where
   dualBasisCandidates = cartesianDualBasisCandidates
            [ColourNeedle (RGB 1 0 0), ColourNeedle (RGB 0 1 0), ColourNeedle (RGB 0 0 1)]
            (\(ColourNeedle (RGB r g b)) -> abs <$> [r,g,b])
+  tensorDualBasisCandidates = map (second $ getLinearFunction asV3Tensor)
+                           >>> tensorDualBasisCandidates
+                           >>> map (fmap $ second $ getLinearFunction fromV3LinMap)
 
 instance FiniteDimensional ColourNeedle where
   data SubBasis ColourNeedle = ColourNeedleBasis
@@ -134,15 +157,30 @@ instance FiniteDimensional ColourNeedle where
   recomposeContraLinMap f l = LinearMap $ RGB (f $ fmap (channelRed . getRGBNeedle) l)
                                               (f $ fmap (channelGreen . getRGBNeedle) l)
                                               (f $ fmap (channelBlue . getRGBNeedle) l)
-  recomposeContraLinMapTensor fw mv = LinearMap $
-       (\c -> fromLinearMap $ recomposeContraLinMap fw
-                $ fmap (\(Tensor q) -> c q) mv)
+  recomposeContraLinMapTensor = rclmt dualSpaceWitness
+   where rclmt :: ∀ u w f . ( Hask.Functor f
+                            , FiniteDimensional u, LinearSpace w
+                            , Scalar u ~ ℝ, Scalar w ~ ℝ )
+                          => DualSpaceWitness u
+                         -> (f ℝ -> w) -> f (ColourNeedle+>DualVector u)
+                            -> (ColourNeedle⊗u)+>w
+         rclmt DualSpaceWitness fw mv = LinearMap $
+           (\c -> fromLinearMap $ recomposeContraLinMap fw
+                $ fmap (\(LinearMap q) -> c q) mv)
                        <$> RGB channelRed channelGreen channelBlue
   uncanonicallyFromDual = id
   uncanonicallyToDual = id
 
-fromLinearMap :: (LSpace u, Scalar u ~ s) => LinearMap s (DualVector u) w -> Tensor s u w
-fromLinearMap = coerce
+fromLinearMap :: ∀ s u v w . (LinearSpace u, Scalar u ~ s)
+                 => LinearMap s (DualVector u) w -> Tensor s u w
+fromLinearMap = case dualSpaceWitness :: DualSpaceWitness u of
+    DualSpaceWitness -> coerce
+asTensor :: ∀ s u v w . (LinearSpace u, Scalar u ~ s)
+                 => LinearMap s u w -> Tensor s (DualVector u) w
+asTensor = coerce
+fromTensor :: ∀ s u v w . (LinearSpace u, Scalar u ~ s)
+                 => Tensor s (DualVector u) w -> LinearMap s u w
+fromTensor = coerce
 
   
 
