@@ -16,11 +16,12 @@ import Data.Manifold.PseudoAffine
 import Data.Manifold.Types
 import Data.Manifold.Riemannian
 import Data.VectorSpace
+import Data.AffineSpace
 import Data.AdditiveGroup
 
 import Data.Colour.SRGB (toSRGB, toSRGB24)
 import Data.Colour.SRGB.Linear
-import Data.Colour
+import Data.Colour hiding (AffineSpace)
 
 import Math.LinearMap.Category
 import Linear.V3
@@ -64,6 +65,7 @@ instance VectorSpace ColourNeedle where
 instance TensorSpace ColourNeedle where
   type TensorProduct ColourNeedle w = RGB w
   scalarSpaceWitness = ScalarSpaceWitness
+  linearManifoldWitness = LinearManifoldWitness BoundarylessWitness
   zeroTensor = Tensor (RGB zeroV zeroV zeroV)
   toFlatTensor = LinearFunction $ \(ColourNeedle (RGB r g b)) -> Tensor (RGB r g b)
   fromFlatTensor = LinearFunction $ \(Tensor (RGB r g b)) -> ColourNeedle (RGB r g b)
@@ -192,6 +194,10 @@ instance Semimanifold ColourNeedle where
 instance PseudoAffine ColourNeedle where
   ColourNeedle q .-~. ColourNeedle s = pure . ColourNeedle $ liftA2 (-) q s
 
+instance AffineSpace ColourNeedle where
+  type Diff ColourNeedle = ColourNeedle
+  (.-.) = (.-~!)
+  (.+^) = (.+~^)
 
 fromLtdRGB :: LtdCol -> Colour ℝ
 fromLtdRGB = fmap (\(CD¹ h Origin) -> h) >>> \(RGB r g b) -> rgb r g b
@@ -216,7 +222,7 @@ bijectToLtd y
 --   = (y - 1 +! sqrt( 1 + y² ) ) / (2*y)  -- unstable for y ≈ 0
 --   = 1/2 - (1 - sqrt( 1 + y² ) ) / (2*y)
 
-bijectFromLtd :: CD¹ ℝ⁰ -> Option ℝ
+bijectFromLtd :: CD¹ ℝ⁰ -> Maybe ℝ
 bijectFromLtd (CD¹ x Origin)
     | x>0 && x<1  = return $ (x - 0.5) / (x*(1 - x))
     | otherwise   = empty
@@ -230,7 +236,7 @@ instance Semimanifold (Colour ℝ) where
   translateP = pure (^+^)
 
 instance PseudoAffine (Colour ℝ) where
-  c .-~. ζ = (^-^ζ) <$> toInterior c
+  c .-~. ζ = liftA2 (^-^) (toInterior c) (toInterior ζ)
 
 instance Geodesic (Colour ℝ) where
   geodesicBetween a b = return $ \(D¹ q) -> blend ((q+1)/2) b a
