@@ -15,6 +15,7 @@ import Data.Semigroup
 
 import Data.Manifold.PseudoAffine
 import Data.Manifold.Types
+import Data.Manifold.Atlas
 import Data.Manifold.Riemannian
 import Data.VectorSpace
 import Data.AffineSpace
@@ -23,6 +24,7 @@ import Data.AdditiveGroup
 import Data.Colour.SRGB (toSRGB, toSRGB24)
 import Data.Colour.SRGB.Linear
 import Data.Colour hiding (AffineSpace)
+import Data.Colour.Names
 
 import Math.LinearMap.Category
 import Linear.V3
@@ -197,6 +199,11 @@ instance Semimanifold ColourNeedle where
 instance PseudoAffine ColourNeedle where
   ColourNeedle q .-~. ColourNeedle s = pure . ColourNeedle $ liftA2 (-) q s
 
+instance Atlas ColourNeedle where
+  type ChartIndex ColourNeedle = ()
+  interiorChartReferencePoint _ () = zeroV
+  lookupAtlas _ = ()
+
 instance AffineSpace ColourNeedle where
   type Diff ColourNeedle = ColourNeedle
   (.-.) = (.-~!)
@@ -250,6 +257,13 @@ instance Geodesic ColourNeedle where
                                         $ RGB (lerp r r' η')
                                               (lerp g g' η')
                                               (lerp b b' η')
+
+instance Atlas (Colour ℝ) where
+  type ChartIndex (Colour ℝ) = ()
+  chartReferencePoint () = grey
+  interiorChartReferencePoint = \_ () -> intGrey
+   where Just intGrey = toInterior (grey :: Colour ℝ)
+  lookupAtlas _ = ()
 
 class QuantisedColour c where
   quantiseColour :: Colour ℝ -> c
