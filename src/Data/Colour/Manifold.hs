@@ -7,6 +7,7 @@
 
 module Data.Colour.Manifold (Colour, QuantisedColour(..)) where
 
+import Data.Functor (($>))
 import Control.Applicative (empty)
 import Control.Applicative.Constrained
 import Control.Arrow.Constrained
@@ -84,6 +85,8 @@ instance TensorSpace ColourNeedle where
   fzipTensorWith = bilinearFunction $ \f (Tensor (RGB r g b), Tensor (RGB r' g' b'))
                    -> Tensor $ RGB (f $ (r,r')) (f $ (g,g')) (f $ (b,b'))
   coerceFmapTensorProduct _ Coercion = Coercion
+  wellDefinedTensor t@(Tensor (RGB r g b))
+    = wellDefinedVector r >> wellDefinedVector g >> wellDefinedVector b $> t
 
 instance LinearSpace ColourNeedle where
   type DualVector ColourNeedle = ColourNeedle
