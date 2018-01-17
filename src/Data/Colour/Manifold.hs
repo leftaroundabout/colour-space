@@ -27,6 +27,7 @@ import Data.Manifold.Riemannian
 import Data.VectorSpace
 import Data.AffineSpace
 import Data.AdditiveGroup
+import Data.Manifold.Shade (Shade(..), Shade'(..), rangeWithinVertices)
 
 import Data.Colour.SRGB (toSRGB, toSRGB24)
 import Data.Colour.SRGB.Linear
@@ -43,6 +44,7 @@ import Codec.Picture.Types
 
 import Data.Coerce
 import Data.Type.Coercion
+import Data.CallStack
 
 import Control.Lens
 
@@ -316,3 +318,27 @@ spanColourPlane :: Interior (Colour ℝ)   -- ^ Neutral colour
                 -> (Colour ℝ, Colour ℝ)  -- ^ Extreme “cold” / “hot” colours
                 -> ColourPlane
 spanColourPlane neutral (cold,hot) = ColourPlane cold neutral hot
+
+class Geodesic x => ColourMappable x where
+  type ColourMapped x :: *
+  type MappingVertex x :: *
+  mapToColourWith :: HasCallStack
+                  => ColourMap (MappingVertex x)
+                  -> Interior (MappingVertex x)
+                  -> (MappingVertex x, MappingVertex x)
+                  -> x
+                  -> ColourMapped x
+
+instance ColourMappable ℝ where
+  type ColourMapped ℝ = Colour ℝ
+  type MappingVertex ℝ = ℝ
+  mapToColourWith (ColourMap (ColourPlane coldC neutralC hotC) swing)
+              neutralP (coldP, hotP)
+        = (\(Shade c _) -> fromInterior c)
+           . shFn
+           . \x -> Shade ( exp $ (x-neutralP)/(hotP-coldP)
+                         , exp $ (neutralP-x)/(hotP-coldP) )
+                         (spanNorm [(256,0), (0,256)])
+                                     :: Shade (ℝ,ℝ)
+   where Just shFn = rangeWithinVertices ((1,1), neutralC)
+                                        [((4,0), coldC), ((0,4), hotC)]
