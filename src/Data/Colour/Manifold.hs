@@ -4,8 +4,15 @@
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE UnicodeSyntax       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
-module Data.Colour.Manifold (Colour, QuantisedColour(..)) where
+module Data.Colour.Manifold (
+         -- * Full colour space
+           Colour, QuantisedColour(..)
+         -- * 2D/1D projected colour space
+         , ColourMap, planarColourMap, colourCurve, colourMapPlane, spectralSwing
+         , ColourPlane, cpCold, cpNeutral, cpHot, spanColourPlane 
+         ) where
 
 import Data.Functor (($>))
 import Control.Applicative (empty)
@@ -36,6 +43,9 @@ import Codec.Picture.Types
 
 import Data.Coerce
 import Data.Type.Coercion
+
+import Control.Lens
+
 
 newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ } deriving (Eq, Show)
 
@@ -276,3 +286,33 @@ instance QuantisedColour PixelRGB8 where
   quantiseColour c = PixelRGB8 r g b
    where RGB r g b = toSRGB24 c
 
+
+-- | A two-dimensional, smoothly varying colour palette.
+data ColourMap x = ColourMap {
+       _cmPlane :: ColourPlane
+     , _cmSpectSwing :: ℝ
+     }
+
+planarColourMap :: ColourPlane -> ColourMap x
+planarColourMap = (`ColourMap`0)
+
+colourCurve :: ColourPlane -> ℝ -> ColourMap ℝ
+colourCurve = ColourMap
+
+spectralSwing :: (Needle x ~ ℝ) => Traversal' (ColourMap x) ℝ
+spectralSwing = lens _cmSpectSwing (\cm sw' -> cm{_cmSpectSwing = sw'})
+
+colourMapPlane :: Traversal' (ColourMap x) ColourPlane
+colourMapPlane = lens _cmPlane (\cm pl' -> cm{_cmPlane = pl'})
+
+data ColourPlane = ColourPlane {
+        _cpCold :: Colour ℝ
+      , _cpNeutral :: Interior (Colour ℝ)
+      , _cpHot :: Colour ℝ
+      }
+makeLenses ''ColourPlane
+
+spanColourPlane :: Interior (Colour ℝ)   -- ^ Neutral colour
+                -> (Colour ℝ, Colour ℝ)  -- ^ Extreme “cold” / “hot” colours
+                -> ColourPlane
+spanColourPlane neutral (cold,hot) = ColourPlane cold neutral hot
