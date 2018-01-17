@@ -16,7 +16,7 @@ module Data.Colour.Manifold (
          -- * Mapping data to colours
          , ColourMappable(..)
          -- * Predefined colour maps
-         , SimpleColourMap, blueCyanYellowRed
+         , SimpleColourMap, blueCyanYellowRed, brightnessVsRedness, rednessVsBlueness
          ) where
 
 import Data.Functor (($>))
@@ -388,3 +388,13 @@ blueCyanYellowRed :: SimpleColourMap
 blueCyanYellowRed
    = simpleColourMap (spanColourPlane neutralc (darkblue,goldenrod)) 1
  where Just neutralc = toInterior (dimgrey :: Colour ℝ)
+
+rednessVsBlueness :: SimpleColourMap
+rednessVsBlueness
+   = simpleColourMap (spanColourPlane neutralc (red, blue)) 1
+ where Just neutralc = toInterior (darkgrey :: Colour ℝ)
+
+brightnessVsRedness :: SimpleColourMap
+brightnessVsRedness
+   = simpleColourMap (spanColourPlane neutralc (white, orangered)) 1
+ where Just neutralc = toInterior (darkgrey :: Colour ℝ)
