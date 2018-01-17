@@ -5,6 +5,7 @@
 {-# LANGUAGE UnicodeSyntax       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE Rank2Types          #-}
 
 module Data.Colour.Manifold (
          -- * Full colour space
@@ -14,6 +15,8 @@ module Data.Colour.Manifold (
          , ColourPlane, cpCold, cpNeutral, cpHot, spanColourPlane 
          -- * Mapping data to colours
          , ColourMappable(..)
+         -- * Predefined colour maps
+         , SimpleColourMap, blueCyanYellowRed
          ) where
 
 import Data.Functor (($>))
@@ -367,4 +370,11 @@ class ColourMappable x => HasSimpleColourMaps x where
 instance HasSimpleColourMaps ℝ where
   simpleColourMap = colourCurve
 
-instance HasSimpleColourMaps (ℝ,ℝ) where
+instance HasSimpleColourMaps (ℝ,ℝ)
+
+type SimpleColourMap = ∀ x . HasSimpleColourMaps x => ColourMap x
+
+blueCyanYellowRed :: SimpleColourMap
+blueCyanYellowRed
+   = simpleColourMap (spanColourPlane neutralc (darkblue,goldenrod)) 1
+ where Just neutralc = toInterior (dimgrey :: Colour ℝ)
