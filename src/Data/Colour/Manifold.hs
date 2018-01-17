@@ -345,3 +345,16 @@ instance ColourMappable ℝ where
                                      :: Shade (ℝ,ℝ)
    where Just shFn = rangeWithinVertices ((0,0), neutralC)
                                         [((1,0), coldC), ((0,1), hotC)]
+
+instance ColourMappable (ℝ,ℝ) where
+  type ColourMapped (ℝ,ℝ) = Colour ℝ
+  type MappingVertex (ℝ,ℝ) = (ℝ,ℝ)
+  mapToColourWith (ColourMap (ColourPlane coldC neutralC hotC) swing)
+              neutralP (coldP, hotP)
+        = (\(Shade c _) -> fromInterior c)
+           . shFn
+           . \xy -> Shade xy quantisationNorm
+   where Just shFn = rangeWithinVertices (neutralP, neutralC)
+                                        [(coldP, coldC), (coldP, hotC)]
+         quantisationNorm = scaleNorm 256 . dualNorm
+                              $ spanVariance [coldP^-^neutralP, hotP^-^neutralP]
