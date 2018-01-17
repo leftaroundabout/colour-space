@@ -12,6 +12,8 @@ module Data.Colour.Manifold (
          -- * 2D/1D projected colour space
          , ColourMap, planarColourMap, colourCurve, colourMapPlane, spectralSwing
          , ColourPlane, cpCold, cpNeutral, cpHot, spanColourPlane 
+         -- * Mapping data to colours
+         , ColourMappable(..)
          ) where
 
 import Data.Functor (($>))
@@ -336,9 +338,10 @@ instance ColourMappable ℝ where
               neutralP (coldP, hotP)
         = (\(Shade c _) -> fromInterior c)
            . shFn
-           . \x -> Shade ( exp $ (x-neutralP)/(hotP-coldP)
-                         , exp $ (neutralP-x)/(hotP-coldP) )
-                         (spanNorm [(256,0), (0,256)])
+           . \x -> let φ = 2*(x-neutralP)/(hotP-coldP)
+                   in Shade ( (1 - φ)/2 + (φ^2 - 1)*exp swing/2
+                            , (φ + 1)/2 + (φ^2 - 1)*exp swing/2 )
+                            (spanNorm [(256,0), (0,256)])
                                      :: Shade (ℝ,ℝ)
-   where Just shFn = rangeWithinVertices ((1,1), neutralC)
-                                        [((4,0), coldC), ((0,4), hotC)]
+   where Just shFn = rangeWithinVertices ((0,0), neutralC)
+                                        [((1,0), coldC), ((0,1), hotC)]
