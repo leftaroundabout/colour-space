@@ -40,6 +40,7 @@ import Data.Colour hiding (AffineSpace)
 import Data.Colour.Names
 
 import Math.LinearMap.Category
+import Linear.V2
 import Linear.V3
 
 import qualified Prelude as Hask
@@ -352,13 +353,21 @@ instance ColourMappable ℝ where
 instance ColourMappable (ℝ,ℝ) where
   type ColourMapped (ℝ,ℝ) = Colour ℝ
   type MappingVertex (ℝ,ℝ) = (ℝ,ℝ)
+  mapToColourWith (ColourMap cp swing)
+              (xN,yN) ((xCold,yCold), (xHot,yHot))
+      = mapToColourWith (ColourMap cp swing) (V2 xN yN) (V2 xCold yCold, V2 xHot yHot)
+          . \(x,y) -> (V2 x y)
+
+instance ColourMappable ℝ² where
+  type ColourMapped ℝ² = Colour ℝ
+  type MappingVertex ℝ² = ℝ²
   mapToColourWith (ColourMap (ColourPlane coldC neutralC hotC) swing)
               neutralP (coldP, hotP)
         = (\(Shade c _) -> fromInterior c)
            . shFn
            . \xy -> Shade xy quantisationNorm
    where Just shFn = rangeWithinVertices (neutralP, neutralC)
-                                        [(coldP, coldC), (coldP, hotC)]
+                                        [(coldP, coldC), (hotP, hotC)]
          quantisationNorm = scaleNorm 256 . dualNorm
                               $ spanVariance [coldP^-^neutralP, hotP^-^neutralP]
 
@@ -371,6 +380,7 @@ instance HasSimpleColourMaps ℝ where
   simpleColourMap = colourCurve
 
 instance HasSimpleColourMaps (ℝ,ℝ)
+instance HasSimpleColourMaps ℝ²
 
 type SimpleColourMap = ∀ x . HasSimpleColourMaps x => ColourMap x
 
