@@ -358,3 +358,13 @@ instance ColourMappable (ℝ,ℝ) where
                                         [(coldP, coldC), (coldP, hotC)]
          quantisationNorm = scaleNorm 256 . dualNorm
                               $ spanVariance [coldP^-^neutralP, hotP^-^neutralP]
+
+
+class ColourMappable x => HasSimpleColourMaps x where
+  simpleColourMap :: ColourPlane -> ℝ -> ColourMap x
+  simpleColourMap = const . planarColourMap
+
+instance HasSimpleColourMaps ℝ where
+  simpleColourMap = colourCurve
+
+instance HasSimpleColourMaps (ℝ,ℝ) where
