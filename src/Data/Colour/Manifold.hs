@@ -391,8 +391,8 @@ blueCyanYellowRed
 
 rednessVsBlueness :: SimpleColourMap
 rednessVsBlueness
-   = simpleColourMap (spanColourPlane neutralc (red, blue)) 1
- where Just neutralc = toInterior (darkgrey :: Colour ℝ)
+   = simpleColourMap (spanColourPlane neutralc (rgb 0.9 0 0.2, rgb 0.1 0.5 1)) 0
+ where neutralc = ColourNeedle $ RGB (-1.4) (-0.5) (-2)
 
 brightnessVsRedness :: SimpleColourMap
 brightnessVsRedness
