@@ -21,9 +21,9 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <5
-                     , manifolds >=0.4.3 && <0.5
+                     , manifolds >=0.4.5 && <0.5
                      , constrained-categories
-                     , linearmap-category
+                     , linearmap-category >=0.3.5
                      , linear
                      , vector-space
                      , semigroups
