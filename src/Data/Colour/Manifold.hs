@@ -92,6 +92,8 @@ instance TensorSpace ColourNeedle where
   fromFlatTensor = LinearFunction $ \(Tensor (RGB r g b)) -> ColourNeedle (RGB r g b)
   addTensors (Tensor (RGB r g b)) (Tensor (RGB r' g' b'))
                 = Tensor $ RGB (r^+^r') (g^+^g') (b^+^b')
+  subtractTensors (Tensor (RGB r g b)) (Tensor (RGB r' g' b'))
+                = Tensor $ RGB (r^-^r') (g^-^g') (b^-^b')
   negateTensor = LinearFunction $ \(Tensor (RGB r g b))
                        -> Tensor (RGB (negateV r) (negateV g) (negateV b))
   scaleTensor = bilinearFunction $ \μ (Tensor (RGB r g b))
