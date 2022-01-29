@@ -2,10 +2,14 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE UnicodeSyntax       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE Rank2Types          #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE CPP                 #-}
 
 module Data.Colour.Manifold (
          -- * Full colour space
@@ -30,10 +34,15 @@ import Data.Manifold.Types
 import Data.Manifold.Atlas
 import Data.Manifold.Riemannian
 import Data.VectorSpace
+import Data.Basis
 import Data.AffineSpace
 import Data.AdditiveGroup
-import Data.Manifold.Shade (Shade(..), Shade'(..), rangeWithinVertices)
-
+import Data.Manifold.Shade (Shade(..), Shade'(..)
+                           , rangeWithinVertices
+                           )
+#if MIN_VERSION_manifolds(0,6,0)
+import Data.Manifold.WithBoundary
+#endif
 import Data.Colour.SRGB (toSRGB, toSRGB24)
 import Data.Colour.SRGB.Linear
 import Data.Colour hiding (AffineSpace)
@@ -53,6 +62,7 @@ import Data.Type.Coercion
 import Data.CallStack
 
 import Control.Lens
+import GHC.Generics
 
 
 newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ } deriving (Eq, Show)
@@ -86,7 +96,10 @@ instance VectorSpace ColourNeedle where
 instance TensorSpace ColourNeedle where
   type TensorProduct ColourNeedle w = RGB w
   scalarSpaceWitness = ScalarSpaceWitness
-  linearManifoldWitness = LinearManifoldWitness BoundarylessWitness
+  linearManifoldWitness = LinearManifoldWitness
+#if !MIN_VERSION_manifolds(0,6,0)
+        BoundarylessWitness
+#endif
   zeroTensor = Tensor (RGB zeroV zeroV zeroV)
   toFlatTensor = LinearFunction $ \(ColourNeedle (RGB r g b)) -> Tensor (RGB r g b)
   fromFlatTensor = LinearFunction $ \(Tensor (RGB r g b)) -> ColourNeedle (RGB r g b)
@@ -213,16 +226,34 @@ fromTensor = coerce
 
 instance Semimanifold ColourNeedle where
   type Needle ColourNeedle = ColourNeedle
+#if MIN_VERSION_manifolds(0,6,0)
+  (.+~^) = (^+^)
+#else
   fromInterior = id; toInterior = pure
   translateP = pure (^+^)
+#endif
 
 instance PseudoAffine ColourNeedle where
   ColourNeedle q .-~. ColourNeedle s = pure . ColourNeedle $ liftA2 (-) q s
 
 instance Atlas ColourNeedle where
   type ChartIndex ColourNeedle = ()
+#if !MIN_VERSION_manifolds(0,6,0)
   interiorChartReferencePoint _ () = zeroV
+#endif
   lookupAtlas _ = ()
+
+#if MIN_VERSION_manifolds(0,6,0)
+instance SemimanifoldWithBoundary ColourNeedle where
+  type Interior ColourNeedle = ColourNeedle
+  type Boundary ColourNeedle = EmptyMfd ℝ⁰
+  type HalfNeedle ColourNeedle = ℝay
+  smfdWBoundWitness = OpenManifoldWitness
+
+instance PseudoAffineWithBoundary ColourNeedle where
+
+instance ProjectableBoundary ColourNeedle where
+#endif
 
 instance AffineSpace ColourNeedle where
   type Diff ColourNeedle = ColourNeedle
@@ -257,16 +288,62 @@ bijectFromLtd (CD¹ x Origin)
     | x>0 && x<1  = return $ (x - 0.5) / (x*(1 - x))
     | otherwise   = empty
 
+newtype ColourBoundary = ColourBoundary {getColourOnBoundary :: Colour ℝ}
+
+data ColourBoundaryNeedle
+       = ColourBoundaryNeedle {
+           deltaCP₀, deltaCP₁ :: !ℝ
+          } deriving ( Generic, Eq, AdditiveGroup, VectorSpace, HasBasis )
+makeLinearSpaceFromBasis [t| ColourBoundaryNeedle |]
+
+data ColourHalfNeedle = ColourHalfNeedle {
+         colourBoundaryTangent :: !ColourBoundaryNeedle
+       , colourBoundaryDistance :: !ℝ
+       }
+   deriving (Generic, Eq)
+
+#if MIN_VERSION_manifolds(0,6,0)
+instance AdditiveMonoid ColourHalfNeedle where
+instance HalfSpace ColourHalfNeedle where
+  type FullSubspace (ColourHalfNeedle) = ColourBoundaryNeedle
+#endif
+
+instance Semimanifold ColourBoundary where
+  type Needle (ColourBoundary) = ColourBoundaryNeedle
+  (.+~^) = undefined
+  semimanifoldWitness = SemimanifoldWitness
+#if MIN_VERSION_manifolds(0,6,0)
+instance SemimanifoldWithBoundary ColourBoundary where
+  type Boundary ColourBoundary = EmptyMfd ℝ⁰
+  type Interior ColourBoundary = ColourBoundary
+  type HalfNeedle ColourBoundary = ℝay
+  smfdWBoundWitness = undefined
+  needleIsOpenMfd = undefined
+#endif
+
+#if MIN_VERSION_manifolds(0,6,0)
+instance SemimanifoldWithBoundary (Colour ℝ) where
+  type Boundary (Colour ℝ) = ColourBoundary
+  type HalfNeedle (Colour ℝ) = ColourHalfNeedle
+  smfdWBoundWitness = undefined
+  needleIsOpenMfd = undefined
+#else
 instance Semimanifold (Colour ℝ) where
-  type Interior (Colour ℝ) = ColourNeedle
   type Needle (Colour ℝ) = ColourNeedle
+#endif
+  type Interior (Colour ℝ) = ColourNeedle
   fromInterior (ColourNeedle q) = fromLtdRGB $ fmap bijectToLtd q
   toInterior = fmap ColourNeedle . toin . toLtdRGB
    where toin (RGB r g b) = liftA3 RGB (bijectFromLtd r) (bijectFromLtd g) (bijectFromLtd b)
+#if !MIN_VERSION_manifolds(0,6,0)
   translateP = pure (^+^)
+#endif
 
+#if MIN_VERSION_manifolds(0,6,0)
+#else
 instance PseudoAffine (Colour ℝ) where
   c .-~. ζ = liftA2 (^-^) (toInterior c) (toInterior ζ)
+#endif
 
 instance Geodesic (Colour ℝ) where
   geodesicBetween a b = return $ \(D¹ q) -> blend ((q+1)/2) b a
@@ -281,8 +358,10 @@ instance Geodesic ColourNeedle where
 instance Atlas (Colour ℝ) where
   type ChartIndex (Colour ℝ) = ()
   chartReferencePoint () = grey
+#if !MIN_VERSION_manifolds(0,6,0)
   interiorChartReferencePoint = \_ () -> intGrey
    where Just intGrey = toInterior (grey :: Colour ℝ)
+#endif
   lookupAtlas _ = ()
 
 class QuantisedColour c where
@@ -350,7 +429,7 @@ instance ColourMappable ℝ where
                             (spanNorm [(256,0), (0,256)])
                                      :: Shade (ℝ,ℝ)
    where Just shFn = rangeWithinVertices ((0,0), neutralC)
-                                        [((1,0), coldC), ((0,1), hotC)]
+                                        [((1,0) :: (ℝ,ℝ), coldC), ((0,1), hotC)]
 
 instance ColourMappable (ℝ,ℝ) where
   type ColourMapped (ℝ,ℝ) = Colour ℝ
