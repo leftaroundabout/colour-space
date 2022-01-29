@@ -310,8 +310,16 @@ instance HalfSpace ColourHalfNeedle where
 
 instance Semimanifold ColourBoundary where
   type Needle (ColourBoundary) = ColourBoundaryNeedle
+#if !MIN_VERSION_manifolds(0,6,0)
+  type Interior ColourBoundary = ColourBoundary
+  toInterior = pure
+  translateP = pure (.+~^)
+#endif
   (.+~^) = undefined
   semimanifoldWitness = SemimanifoldWitness
+#if !MIN_VERSION_manifolds(0,6,0)
+         BoundarylessWitness
+#endif
 #if MIN_VERSION_manifolds(0,6,0)
 instance SemimanifoldWithBoundary ColourBoundary where
   type Boundary ColourBoundary = EmptyMfd ℝ⁰
