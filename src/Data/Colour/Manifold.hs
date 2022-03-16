@@ -1,15 +1,17 @@
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE UnicodeSyntax       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE Rank2Types          #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE UnicodeSyntax        #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE Rank2Types           #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE EmptyCase            #-}
+{-# LANGUAGE CPP                  #-}
 
 module Data.Colour.Manifold (
          -- * Full colour space
@@ -30,6 +32,7 @@ import Control.Arrow.Constrained
 import Data.Semigroup
 
 import Data.Manifold.PseudoAffine
+import Math.Manifold.Core.PseudoAffine (GenericNeedle(..))
 import Data.Manifold.Types
 import Data.Manifold.Atlas
 import Data.Manifold.Riemannian
@@ -45,6 +48,7 @@ import Data.Manifold.WithBoundary
 #endif
 import Data.Colour.SRGB (toSRGB, toSRGB24)
 import Data.Colour.SRGB.Linear
+import Data.Colour.RGBSpace.HSL (hslView, hsl)
 import Data.Colour hiding (AffineSpace)
 import Data.Colour.Names
 
@@ -165,6 +169,7 @@ instance LinearSpace ColourNeedle where
   composeLinear = bilinearFunction $ \f (LinearMap (RGB r' g' b'))
             -> LinearMap $ RGB (f +$ r') (f +$ g') (f +$ b')
    where f+$x = getLinearFunction (getLinearFunction applyLinear f) x
+  useTupleLinearSpaceComponents = undefined
 
 instance SemiInner ColourNeedle where
   dualBasisCandidates = cartesianDualBasisCandidates
@@ -197,6 +202,7 @@ instance FiniteDimensional ColourNeedle where
   recomposeContraLinMap f l = LinearMap $ RGB (f $ fmap (channelRed . getRGBNeedle) l)
                                               (f $ fmap (channelGreen . getRGBNeedle) l)
                                               (f $ fmap (channelBlue . getRGBNeedle) l)
+  tensorEquality (Tensor t) (Tensor τ) = t == τ
   recomposeContraLinMapTensor = rclmt dualSpaceWitness
    where rclmt :: ∀ u w f . ( Hask.Functor f
                             , FiniteDimensional u, LinearSpace w
@@ -234,12 +240,15 @@ instance Semimanifold ColourNeedle where
 #endif
 
 instance PseudoAffine ColourNeedle where
-  ColourNeedle q .-~. ColourNeedle s = pure . ColourNeedle $ liftA2 (-) q s
+  ColourNeedle q .-~! ColourNeedle s = ColourNeedle $ liftA2 (-) q s
+  q .-~. s = pure (q.-~!s)
 
 instance Atlas ColourNeedle where
   type ChartIndex ColourNeedle = ()
 #if !MIN_VERSION_manifolds(0,6,0)
   interiorChartReferencePoint _ () = zeroV
+#else
+  chartReferencePoint () = zeroV
 #endif
   lookupAtlas _ = ()
 
@@ -249,10 +258,18 @@ instance SemimanifoldWithBoundary ColourNeedle where
   type Boundary ColourNeedle = EmptyMfd ℝ⁰
   type HalfNeedle ColourNeedle = ℝay
   smfdWBoundWitness = OpenManifoldWitness
+  (|+^) b = case b of {}
+  _ .+^| b = case b of {}
+  fromBoundary b = case b of {}
+  fromInterior = id
 
 instance PseudoAffineWithBoundary ColourNeedle where
+  _ !-| b = case b of {}
+  (.--!) = (.-~!)
 
 instance ProjectableBoundary ColourNeedle where
+  projectToBoundary _ b = case b of {}
+  marginFromBoundary b _ = case b of {}
 #endif
 
 instance AffineSpace ColourNeedle where
@@ -288,53 +305,67 @@ bijectFromLtd (CD¹ x Origin)
     | x>0 && x<1  = return $ (x - 0.5) / (x*(1 - x))
     | otherwise   = empty
 
-newtype ColourBoundary = ColourBoundary {getColourOnBoundary :: Colour ℝ}
 
-data ColourBoundaryNeedle
-       = ColourBoundaryNeedle {
-           deltaCP₀, deltaCP₁ :: !ℝ
-          } deriving ( Generic, Eq, AdditiveGroup, VectorSpace, HasBasis )
-makeLinearSpaceFromBasis [t| ColourBoundaryNeedle |]
+
+newtype ColourBoundary = ColourBoundarySphere {
+   getColourBounarySphere :: S² -- Corresponds to an inflated version of the HSL bicone
+  }
+ deriving (Generic, Semimanifold, PseudoAffine)
 
 data ColourHalfNeedle = ColourHalfNeedle {
-         colourBoundaryTangent :: !ColourBoundaryNeedle
-       , colourBoundaryDistance :: !ℝ
+         colourBoundaryDistance :: !ℝay
+       , colourBoundaryTangent :: !(Needle ColourBoundary)
        }
-   deriving (Generic, Eq)
+   deriving (Generic)
 
 #if MIN_VERSION_manifolds(0,6,0)
-instance AdditiveMonoid ColourHalfNeedle where
-instance HalfSpace ColourHalfNeedle where
-  type FullSubspace (ColourHalfNeedle) = ColourBoundaryNeedle
+instance AdditiveMonoid ColourHalfNeedle
+instance HalfSpace ColourHalfNeedle
 #endif
 
-instance Semimanifold ColourBoundary where
-  type Needle (ColourBoundary) = ColourBoundaryNeedle
-#if !MIN_VERSION_manifolds(0,6,0)
-  type Interior ColourBoundary = ColourBoundary
-  toInterior = pure
-  translateP = pure (.+~^)
-#endif
-  (.+~^) = undefined
-  semimanifoldWitness = SemimanifoldWitness
-#if !MIN_VERSION_manifolds(0,6,0)
-         BoundarylessWitness
-#endif
 #if MIN_VERSION_manifolds(0,6,0)
 instance SemimanifoldWithBoundary ColourBoundary where
   type Boundary ColourBoundary = EmptyMfd ℝ⁰
   type Interior ColourBoundary = ColourBoundary
   type HalfNeedle ColourBoundary = ℝay
-  smfdWBoundWitness = undefined
-  needleIsOpenMfd = undefined
+  smfdWBoundWitness = OpenManifoldWitness
+  needleIsOpenMfd q = q
+  b|+^_ = case b of {}
+  _.+^|b = case b of {}
+  fromInterior = id
+  fromBoundary b = case b of {}
 #endif
+
+instance Hask.Foldable RGB where
+  foldMap f (RGB r g b) = f r `mappend` f g `mappend` f b
+
+projectRGBToColourBoundary :: RGB ℝ -> ColourBoundary
+projectRGBToColourBoundary c = ColourBoundarySphere $ S²Polar ϑ φ
+ where (h,s,l) = hslView c
+       φ = h*2*pi/360 - pi
+       ϑ = l * pi
 
 #if MIN_VERSION_manifolds(0,6,0)
 instance SemimanifoldWithBoundary (Colour ℝ) where
   type Boundary (Colour ℝ) = ColourBoundary
   type HalfNeedle (Colour ℝ) = ColourHalfNeedle
-  smfdWBoundWitness = undefined
-  needleIsOpenMfd = undefined
+  smfdWBoundWitness = undefined -- SmfdWBoundWitness
+  needleIsOpenMfd q = q
+  fromBoundary (ColourBoundarySphere (S²Polar ϑ φ))
+        = fromRGB $ hsl ((φ+pi)*360/2*pi) 1 (ϑ/pi)
+  b |+^ ColourHalfNeedle (Cℝay d Origin) δb
+        = fromRGB $ hsl ((φ+pi)*360/2*pi) (1/(d+1)) (0.5 + (ϑ/pi-0.5)/(d+1))
+   where ColourBoundarySphere (S²Polar ϑ φ) = b.+~^δb
+  c .+^| ColourNeedle dc
+    | η>1        = Left (projectRGBToColourBoundary $ (+).(/η) <$> dc <*> rgb, η - 1)
+    | otherwise  = Right . ColourNeedle $ (+)<$>dc<*>rgb
+   where rgb = toRGB c
+         η = minimum $ (\m d -> if d>0 then if m<1 then d/(1-m) else huge
+                                 else if d<0 then -d/m
+                                 else 0)
+                      <$> rgb <*> dc
+         huge = 1e12
+
 #else
 instance Semimanifold (Colour ℝ) where
   type Needle (Colour ℝ) = ColourNeedle
@@ -401,6 +432,9 @@ spectralSwing = lens _cmSpectSwing (\cm sw' -> cm{_cmSpectSwing = sw'})
 
 colourMapPlane :: Traversal' (ColourMap x) ColourPlane
 colourMapPlane = lens _cmPlane (\cm pl' -> cm{_cmPlane = pl'})
+
+fromRGB :: Fractional a => RGB a -> Colour a
+fromRGB (RGB r g b) = rgb r g b
 
 data ColourPlane = ColourPlane {
         _cpCold :: Colour ℝ
