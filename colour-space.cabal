@@ -18,6 +18,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Data.Colour.Manifold
+                       Data.Colour.Manifold.Internal
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base >=4.7 && <5

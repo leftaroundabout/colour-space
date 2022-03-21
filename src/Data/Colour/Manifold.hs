@@ -25,6 +25,8 @@ module Data.Colour.Manifold (
          , SimpleColourMap, blackBlueYellowRed, brightVsRed, redVsBlue
          ) where
 
+import Data.Colour.Manifold.Internal
+
 import Data.Functor (($>))
 import Control.Applicative (empty)
 import Control.Applicative.Constrained
@@ -68,14 +70,6 @@ import Data.CallStack
 import Control.Lens
 import GHC.Generics
 
-
-newtype ColourNeedle = ColourNeedle { getRGBNeedle :: RGB ℝ } deriving (Eq, Show)
-
-asV3Needle :: ColourNeedle -+> V3 ℝ
-asV3Needle = LinearFunction $ \(ColourNeedle (RGB r g b)) -> V3 r g b
-
-fromV3Needle :: V3 ℝ -+> ColourNeedle
-fromV3Needle = LinearFunction $ \(V3 r g b) -> ColourNeedle $ RGB r g b
 
 asV3Tensor :: (ColourNeedle⊗w) -+> (V3 ℝ⊗w)
 asV3Tensor = LinearFunction $ \(Tensor (RGB r g b)) -> Tensor $ V3 r g b
@@ -306,17 +300,6 @@ bijectFromLtd (CD¹ x Origin)
     | otherwise   = empty
 
 
-
-newtype ColourBoundary = ColourBoundarySphere {
-   getColourBounarySphere :: S² -- Corresponds to an inflated version of the HSL bicone
-  }
- deriving (Generic, Semimanifold, PseudoAffine)
-
-data ColourHalfNeedle = ColourHalfNeedle {
-         colourBoundaryDistance :: !ℝay
-       , colourBoundaryTangent :: !(Needle ColourBoundary)
-       }
-   deriving (Generic)
 
 #if MIN_VERSION_manifolds(0,6,0)
 instance AdditiveMonoid ColourHalfNeedle
