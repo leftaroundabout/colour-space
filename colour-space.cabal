@@ -43,6 +43,7 @@ test-suite tasty
                    , QuickCheck
                    , manifolds-core
                    , manifolds
+                   , random
                    , colour
                    , vector-space
                    , constrained-categories
