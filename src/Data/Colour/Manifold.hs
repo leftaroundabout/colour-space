@@ -63,12 +63,18 @@ import Control.Category.Constrained.Prelude
 
 import Codec.Picture.Types
 
+import qualified Test.QuickCheck as QC
+
 import Data.Coerce
 import Data.Type.Coercion
 import Data.CallStack
 
 import Control.Lens
 import GHC.Generics
+
+instance QC.Arbitrary ColourNeedle where
+  arbitrary = ColourNeedle <$> (
+                   RGB <$> QC.arbitrary <*> QC.arbitrary <*> QC.arbitrary )
 
 
 asV3Tensor :: (ColourNeedle⊗w) -+> (V3 ℝ⊗w)
@@ -294,10 +300,11 @@ bijectToLtd y
 --   = (y - 1 +! sqrt( 1 + y² ) ) / (2*y)  -- unstable for y ≈ 0
 --   = 1/2 - (1 - sqrt( 1 + y² ) ) / (2*y)
 
-bijectFromLtd :: CD¹ ℝ⁰ -> Maybe ℝ
+bijectFromLtd :: CD¹ ℝ⁰ -> Either S⁰ ℝ
 bijectFromLtd (CD¹ x Origin)
-    | x>0 && x<1  = return $ (x - 0.5) / (x*(1 - x))
-    | otherwise   = empty
+    | x<=1e-9     = Left NegativeHalfSphere
+    | x>=1-1e-9   = Left PositiveHalfSphere
+    | otherwise   = return $ (x - 0.5) / (x*(1 - x))
 
 
 
@@ -307,6 +314,9 @@ instance HalfSpace ColourHalfNeedle
 #endif
 
 #if MIN_VERSION_manifolds(0,6,0)
+instance QC.Arbitrary ColourBoundary where
+  arbitrary = ColourBoundarySphere <$> QC.arbitrary
+
 instance SemimanifoldWithBoundary ColourBoundary where
   type Boundary ColourBoundary = EmptyMfd ℝ⁰
   type Interior ColourBoundary = ColourBoundary
@@ -324,7 +334,7 @@ instance Hask.Foldable RGB where
 
 projectRGBToColourBoundary :: RGB ℝ -> ColourBoundary
 projectRGBToColourBoundary c = ColourBoundarySphere $ S²Polar ϑ φ
- where (h,s,l) = hslView c
+ where (h,_,l) = hslView c
        φ = h*2*pi/360 - pi
        ϑ = l * pi
 
@@ -335,27 +345,32 @@ instance SemimanifoldWithBoundary (Colour ℝ) where
   smfdWBoundWitness = undefined -- SmfdWBoundWitness
   needleIsOpenMfd q = q
   fromBoundary (ColourBoundarySphere (S²Polar ϑ φ))
-        = fromRGB $ hsl ((φ+pi)*360/2*pi) 1 (ϑ/pi)
+        = fromRGB $ hsl ((φ+pi)*360/(2*pi)) 1 (ϑ/pi)
   b |+^ ColourHalfNeedle (Cℝay d Origin) δb
-        = fromRGB $ hsl ((φ+pi)*360/2*pi) (1/(d+1)) (0.5 + (ϑ/pi-0.5)/(d+1))
+        = fromRGB $ hsl ((φ+pi)*360/(2*pi)) (1/(d+1)) (0.5 + (ϑ/pi-0.5)/(d+1))
    where ColourBoundarySphere (S²Polar ϑ φ) = b.+~^δb
   c .+^| ColourNeedle dc
     | η>1        = Left (projectRGBToColourBoundary $ (+).(/η) <$> dc <*> rgb, η - 1)
-    | otherwise  = Right . ColourNeedle $ (+)<$>dc<*>rgb
+    | otherwise  = case toInterior . fromRGB $ (+)<$>dc<*>rgb of
+                     Just c' -> Right c'
    where rgb = toRGB c
          η = minimum $ (\m d -> if d>0 then if m<1 then d/(1-m) else huge
                                  else if d<0 then -d/m
                                  else 0)
                       <$> rgb <*> dc
          huge = 1e12
-
+  separateInterior c = case toin $ toLtdRGB c of
+           Left _ -> Left . projectRGBToColourBoundary $ toRGB c
+           Right ci -> Right $ ColourNeedle ci
+   where rgb = toRGB c
+         toin (RGB r g b) = liftA3 RGB (bijectFromLtd r) (bijectFromLtd g) (bijectFromLtd b)
 #else
 instance Semimanifold (Colour ℝ) where
   type Needle (Colour ℝ) = ColourNeedle
 #endif
   type Interior (Colour ℝ) = ColourNeedle
   fromInterior (ColourNeedle q) = fromLtdRGB $ fmap bijectToLtd q
-  toInterior = fmap ColourNeedle . toin . toLtdRGB
+  toInterior = fmap ColourNeedle . eitherToMaybe . toin . toLtdRGB
    where toin (RGB r g b) = liftA3 RGB (bijectFromLtd r) (bijectFromLtd g) (bijectFromLtd b)
 #if !MIN_VERSION_manifolds(0,6,0)
   translateP = pure (^+^)
@@ -366,6 +381,10 @@ instance Semimanifold (Colour ℝ) where
 instance PseudoAffine (Colour ℝ) where
   c .-~. ζ = liftA2 (^-^) (toInterior c) (toInterior ζ)
 #endif
+
+eitherToMaybe :: Either a b -> Maybe b
+eitherToMaybe (Left _) = Nothing
+eitherToMaybe (Right x) = Just x
 
 instance Geodesic (Colour ℝ) where
   geodesicBetween a b = return $ \(D¹ q) -> blend ((q+1)/2) b a

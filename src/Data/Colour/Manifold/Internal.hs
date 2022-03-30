@@ -33,7 +33,7 @@ fromV3Needle = LinearFunction $ \(V3 r g b) -> ColourNeedle $ RGB r g b
 newtype ColourBoundary = ColourBoundarySphere {
    getColourBounarySphere :: S² -- ^ Corresponds to an inflated version of the HSL bicone
   }
- deriving (Generic, Semimanifold, PseudoAffine)
+ deriving (Generic, Semimanifold, PseudoAffine, Eq, Show)
 
 data ColourHalfNeedle = ColourHalfNeedle {
          colourBoundaryDistance :: !ℝay

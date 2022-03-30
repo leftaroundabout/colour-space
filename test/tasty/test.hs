@@ -54,6 +54,10 @@ main = do
           Nothing -> undefined
           Just ci -> case c .+^| zeroV of
             Right c' -> c'≈≈≈ci
+    , testProperty "Boundary retrieval"
+     $ \ce -> separateInterior (fromBoundary ce :: Colour ℝ) ≈≈≈ Left ce
+    , testProperty "Interior retrieval"
+     $ \ci -> separateInterior (fromInterior ci :: Colour ℝ) ≈≈≈ Right ci
     ]
    ]
 
@@ -83,6 +87,8 @@ instance (NearEq a, NearEq b) => NearEq (Either a b) where
   _ ≈≈ _ = False
 instance NearEq D¹ where
   D¹ p ≈≈ D¹ q = abs (p-q) < 1e-9
+instance NearEq S² where
+  p ≈≈ q = magnitude (p.-~.q) < 1e-9
 
 instance (NearEq a, Fractional a) => NearEq (Colour a) where
   c ≈≈ ζ = toRGB c ≈≈ toRGB ζ
@@ -90,6 +96,8 @@ instance NearEq ColourNeedle where
   ColourNeedle v ≈≈ ColourNeedle w = v ≈≈ w
 instance (Fractional a, Random a) => QC.Arbitrary (Colour a) where
   arbitrary = rgb <$> QC.choose (0,1) <*> QC.choose (0,1) <*> QC.choose (0,1)
+instance NearEq ColourBoundary where
+  ColourBoundarySphere v ≈≈ ColourBoundarySphere w = v ≈≈ w
 
 (≈≈≈) :: (NearEq a, Eq a, Show a)
       => a -> a -> QC.Property
