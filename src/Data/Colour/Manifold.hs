@@ -351,10 +351,11 @@ instance SemimanifoldWithBoundary (Colour ℝ) where
    where ColourBoundarySphere (S²Polar ϑ φ) = b.+~^δb
   c .+^| ColourNeedle dc
     | η>1        = Left (projectRGBToColourBoundary $ (+).(/η) <$> dc <*> rgb, η - 1)
-    | otherwise  = case toInterior . fromRGB $ (+)<$>dc<*>rgb of
-                     Just c' -> Right c'
+    | otherwise  = case separateInterior . fromRGB $ (+)<$>dc<*>rgb of
+                     Right c' -> Right c'
+                     Left c'b -> error $ show (η, (+)<$>dc<*>rgb)
    where rgb = toRGB c
-         η = minimum $ (\m d -> if d>0 then if m<1 then d/(1-m) else huge
+         η = maximum $ (\m d -> if d>0 then if m<1 then d/(1-m) else huge
                                  else if d<0 then -d/m
                                  else 0)
                       <$> rgb <*> dc

@@ -66,6 +66,16 @@ main = do
             in QC.counterexample (printf "v = %s\n" (show v)) $ case d .+^| v of
                    Left (cb, η) -> QC.property (abs η < 1e-6) .&&. fromBoundary cb ≈≈≈ c
                    Right ci     -> fromInterior ci ≈≈≈ c
+    , testProperty "Displacement re-subtraction"
+     $ \(c :: Colour ℝ) v
+         -> case c .+^| v of
+              Left (db, η) -> let w = fromBoundary db.--!c
+                                  μ = v<.>w
+                                  λ = v<.>v
+                              in QC.property (μ>=0 && μ<=λ)
+                                     .&&. v^*(μ/λ) ≈≈≈ w
+                                     .&&. w^*(1+η) ≈≈≈ v
+              Right di     -> fromInterior di.--!c ≈≈≈ v
     ]
    ]
 
@@ -114,3 +124,8 @@ p≈≈≈q
  | otherwise  = p===q
 
 
+
+
+instance InnerSpace ColourNeedle where
+  ColourNeedle c <.> ColourNeedle d = pr+pg+pb
+   where RGB pr pg pb = (*)<$>c<*>d
