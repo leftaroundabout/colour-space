@@ -377,6 +377,8 @@ instance Semimanifold (Colour ℝ) where
 #endif
 
 #if MIN_VERSION_manifolds(0,6,0)
+instance PseudoAffineWithBoundary (Colour ℝ) where
+  c .--! d = ColourNeedle $ (-) <$> toRGB c <*> toRGB d
 #else
 instance PseudoAffine (Colour ℝ) where
   c .-~. ζ = liftA2 (^-^) (toInterior c) (toInterior ζ)

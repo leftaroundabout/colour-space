@@ -27,6 +27,7 @@ import Math.Manifold.Core.PseudoAffine
 import Data.Manifold.Types
 import Data.Manifold.WithBoundary
 import Data.VectorSpace
+import Data.Semigroup
 
 import Data.Colour.Manifold
 import Data.Colour.Manifold.Internal
@@ -37,6 +38,7 @@ import Test.Tasty
 import Test.Tasty.QuickCheck
 import qualified Test.QuickCheck as QC
 import System.Random (Random)
+import Text.Printf
 
 main :: IO ()
 main = do
@@ -58,6 +60,12 @@ main = do
      $ \ce -> separateInterior (fromBoundary ce :: Colour ℝ) ≈≈≈ Left ce
     , testProperty "Interior retrieval"
      $ \ci -> separateInterior (fromInterior ci :: Colour ℝ) ≈≈≈ Right ci
+    , testProperty "Difference re-addition"
+     $ \(c :: Colour ℝ) d
+         -> let Just v = c.--.d
+            in QC.counterexample (printf "v = %s\n" (show v)) $ case d .+^| v of
+                   Left (cb, η) -> QC.property (abs η < 1e-6) .&&. fromBoundary cb ≈≈≈ c
+                   Right ci     -> fromInterior ci ≈≈≈ c
     ]
    ]
 
