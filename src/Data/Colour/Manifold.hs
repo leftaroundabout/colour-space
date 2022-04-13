@@ -169,7 +169,7 @@ instance LinearSpace ColourNeedle where
   composeLinear = bilinearFunction $ \f (LinearMap (RGB r' g' b'))
             -> LinearMap $ RGB (f +$ r') (f +$ g') (f +$ b')
    where f+$x = getLinearFunction (getLinearFunction applyLinear f) x
-  useTupleLinearSpaceComponents = undefined
+  useTupleLinearSpaceComponents _ = undefined
 
 instance SemiInner ColourNeedle where
   dualBasisCandidates = cartesianDualBasisCandidates
