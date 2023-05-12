@@ -55,6 +55,9 @@ import Data.Colour hiding (AffineSpace)
 import Data.Colour.Names
 
 import Math.LinearMap.Category
+#if MIN_VERSION_linearmap_category(0,5,0)
+import Math.LinearMap.Coercion
+#endif
 import Linear.V2
 import Linear.V3
 
@@ -123,7 +126,11 @@ instance TensorSpace ColourNeedle where
                    -> Tensor $ RGB (f $ r) (f $ g) (f $ b)
   fzipTensorWith = bilinearFunction $ \f (Tensor (RGB r g b), Tensor (RGB r' g' b'))
                    -> Tensor $ RGB (f $ (r,r')) (f $ (g,g')) (f $ (b,b'))
+#if MIN_VERSION_linearmap_category(0,5,0)
+  coerceFmapTensorProduct _ VSCCoercion = VSCCoercion
+#else
   coerceFmapTensorProduct _ Coercion = Coercion
+#endif
   wellDefinedTensor t@(Tensor (RGB r g b))
     = wellDefinedVector r >> wellDefinedVector g >> wellDefinedVector b $> t
 
@@ -140,7 +147,11 @@ instance LinearSpace ColourNeedle where
                   (fmap (LinearFunction $ \w -> Tensor $ RGB w zeroV zeroV) $ wid)
                   (fmap (LinearFunction $ \w -> Tensor $ RGB zeroV w zeroV) $ wid)
                   (fmap (LinearFunction $ \w -> Tensor $ RGB zeroV zeroV w) $ wid)
+#if MIN_VERSION_linearmap_category(0,5,0)
+  coerceDoubleDual = VSCCoercion
+#else
   coerceDoubleDual = Coercion
+#endif
   dualSpaceWitness = DualSpaceWitness
   contractTensorMap = LinearFunction $ \(LinearMap (RGB (Tensor (RGB r _ _))
                                                         (Tensor (RGB _ g _))
