@@ -1,17 +1,20 @@
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE UnicodeSyntax        #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE Rank2Types           #-}
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE DeriveAnyClass       #-}
-{-# LANGUAGE EmptyCase            #-}
-{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE UnicodeSyntax         #-}
+{-# LANGUAGE InstanceSigs          #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE Rank2Types            #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE CPP                   #-}
 
 module Data.Colour.Manifold (
          -- * Full colour space
@@ -58,6 +61,9 @@ import Math.LinearMap.Category
 #if MIN_VERSION_linearmap_category(0,5,0)
 import Math.LinearMap.Coercion
 #endif
+#if MIN_VERSION_linearmap_category(0,6,0)
+import Math.VectorSpace.DimensionAware
+#endif
 import Linear.V2
 import Linear.V3
 
@@ -100,6 +106,18 @@ instance VectorSpace ColourNeedle where
   type Scalar ColourNeedle = ℝ
   (*^)μ = withRGBNeedle $ fmap (μ*)
 
+#if MIN_VERSION_linearmap_category(0,6,0)
+instance DimensionAware ColourNeedle where
+  type StaticDimension ColourNeedle = 'Just 3
+  dimensionalityWitness = IsStaticDimensional
+instance 3`Dimensional`ColourNeedle where
+  unsafeFromArrayWithOffset
+     i = unsafeFromArrayWithOffset i >>> \(V3 r g b) -> ColourNeedle (RGB r g b)
+  unsafeWriteArrayWithOffset ar i (ColourNeedle (RGB r g b))
+     = unsafeWriteArrayWithOffset ar i $ V3 r g b
+#endif
+  
+
 instance TensorSpace ColourNeedle where
   type TensorProduct ColourNeedle w = RGB w
   scalarSpaceWitness = ScalarSpaceWitness
@@ -126,24 +144,34 @@ instance TensorSpace ColourNeedle where
                    -> Tensor $ RGB (f $ r) (f $ g) (f $ b)
   fzipTensorWith = bilinearFunction $ \f (Tensor (RGB r g b), Tensor (RGB r' g' b'))
                    -> Tensor $ RGB (f $ (r,r')) (f $ (g,g')) (f $ (b,b'))
-#if MIN_VERSION_linearmap_category(0,5,0)
+#if MIN_VERSION_linearmap_category(0,6,0)
+  coerceFmapTensorProduct _ VSCCoercion = Coercion
+#elif MIN_VERSION_linearmap_category(0,5,0)
   coerceFmapTensorProduct _ VSCCoercion = VSCCoercion
 #else
   coerceFmapTensorProduct _ Coercion = Coercion
 #endif
   wellDefinedTensor t@(Tensor (RGB r g b))
     = wellDefinedVector r >> wellDefinedVector g >> wellDefinedVector b $> t
+#if MIN_VERSION_linearmap_category(0,6,0)
+  tensorUnsafeFromArrayWithOffset i
+    = arr fromV3Tensor . tensorUnsafeFromArrayWithOffset i
+  tensorUnsafeWriteArrayWithOffset ar i
+    = tensorUnsafeWriteArrayWithOffset ar i . arr asV3Tensor
+#endif
 
 instance LinearSpace ColourNeedle where
   type DualVector ColourNeedle = ColourNeedle
   linearId = LinearMap $ RGB (ColourNeedle $ RGB 1 0 0)
                              (ColourNeedle $ RGB 0 1 0)
                              (ColourNeedle $ RGB 0 0 1)
-  tensorId = ti dualSpaceWitness (asTensor $ id)
-   where ti :: ∀ w . (TensorSpace w, Scalar w ~ ℝ)
-               => DualSpaceWitness w -> Tensor ℝ (DualVector w) w
+  tensorId = ti dualSpaceWitness
+   where ti :: ∀ w . (LinearSpace w, Scalar w ~ ℝ)
+               => DualSpaceWitness w
                  -> Tensor ℝ ColourNeedle w+>Tensor ℝ ColourNeedle w
-         ti DualSpaceWitness wid = LinearMap $ RGB
+         ti DualSpaceWitness
+           = let wid = asTensor $ id :: Tensor ℝ (DualVector w) w
+             in LinearMap $ RGB
                   (fmap (LinearFunction $ \w -> Tensor $ RGB w zeroV zeroV) $ wid)
                   (fmap (LinearFunction $ \w -> Tensor $ RGB zeroV w zeroV) $ wid)
                   (fmap (LinearFunction $ \w -> Tensor $ RGB zeroV zeroV w) $ wid)
@@ -173,7 +201,12 @@ instance LinearSpace ColourNeedle where
   applyTensorFunctional = bilinearFunction
             $ \(LinearMap (RGB r' g' b')) (Tensor (RGB r g b))
                    -> r'<.>^r + g'<.>^g + b'<.>^b
-  applyTensorLinMap = bilinearFunction
+  applyTensorLinMap :: ∀ u w . ( LinearSpace u, Scalar u ~ ℝ
+                               , TensorSpace w, Scalar w ~ ℝ )
+    => LinearFunction ℝ (LinearMap ℝ (Tensor ℝ ColourNeedle u) w)
+                        (LinearFunction ℝ (Tensor ℝ ColourNeedle u) w)
+  applyTensorLinMap = case dualSpaceWitness @u of
+    DualSpaceWitness -> bilinearFunction
             $ \(LinearMap (RGB r' g' b')) (Tensor (RGB r g b))
                 -> (r'+$r) ^+^ (g'+$g) ^+^ (b'+$b)
    where f+$x = getLinearFunction (getLinearFunction applyLinear $ fromTensor $ f) x
@@ -228,6 +261,7 @@ instance FiniteDimensional ColourNeedle where
   uncanonicallyFromDual = id
   uncanonicallyToDual = id
 
+#if !MIN_VERSION_linearmap_category(0,6,0)
 fromLinearMap :: ∀ s u v w . (LinearSpace u, Scalar u ~ s)
                  => LinearMap s (DualVector u) w -> Tensor s u w
 fromLinearMap = case dualSpaceWitness :: DualSpaceWitness u of
@@ -238,6 +272,7 @@ asTensor = coerce
 fromTensor :: ∀ s u v w . (LinearSpace u, Scalar u ~ s)
                  => Tensor s (DualVector u) w -> LinearMap s u w
 fromTensor = coerce
+#endif
 
   
 
