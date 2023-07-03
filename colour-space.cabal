@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                colour-space
-version:             0.2.0.0
+version:             0.2.1.0
 synopsis:            Instances of the manifold-classes for colour types
 -- description:         
 homepage:            https://github.com/leftaroundabout/colour-space
